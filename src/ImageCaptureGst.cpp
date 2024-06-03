@@ -20,6 +20,8 @@
 #include <sstream>
 #include <unistd.h>
 #include <vector>
+#include <iostream>
+using namespace std;
 
 #include "CameraParameters.h"
 #include "ImageCaptureGst.h"
@@ -343,16 +345,22 @@ std::string ImageCaptureGst::getGstPipelineNameV4l2()
         return {};
 
     std::stringstream filter;
-    filter << "video/x-raw, ";
+    filter << "video/x-raw(memory:NVMM), ";
     if (mWidth > 0 && mHeight > 0) {
-        filter << " width=" << std::to_string(mWidth) << ", height=" << std::to_string(mHeight);
+        filter << "width=" << std::to_string(mWidth) << ", height=" << std::to_string(mHeight)
+	   << ", format=NV12";
     }
 
     std::stringstream ss;
-    ss << "v4l2src device=" << device + " num-buffers=1"
-       << " ! " << filter.str() << " ! " << enc << " ! "
+    ss << "nvarguscamerasrc sensor_id=0 "
+       << "num-buffers=1 ! "
+       << filter.str() << " ! nvvidconv ! "
+       << "video/x-raw, format=I420 ! jpegenc ! "
        << "filesink location=" << mPath + "img_" << std::to_string(++imgCount) << "." + ext;
+
     log_debug("Gstreamer pipeline: %s", ss.str().c_str());
+
+
     return ss.str();
 }
 
@@ -370,6 +378,7 @@ int ImageCaptureGst::createV4l2Pipeline()
         log_error("Pipeline String error");
         return 1;
     }
+    log_info(" %s",pipeline_str.c_str());
     pipeline = gst_parse_launch(pipeline_str.c_str(), &error);
     if (!pipeline) {
         log_error("Error creating pipeline");
